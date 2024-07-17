@@ -2,19 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Dygraph from "dygraphs";
-import { GraphInterface } from "./components/GraphInterface";
+import { Graph } from "./components/Graph";
 import {
   DEFAULT_INTERVAL,
   DEFAULT_DISPLAYED_POINTS,
   DEFAULT_POINTS_PER_INTERVAL,
+  GRAPH_WIDTH,
+  GRAPH_HEIGHT,
 } from "./constants";
-
-interface DataPoint {
-  x: number;
-  y: [number, number];
-}
-
-const DOWNSAMPLE = 1; // if 2, then two points are merged into one
+import { Controls } from "./components/Controls";
+import { Aggregates } from "./components/Aggregates";
+import { Wrapper } from "./components/Wrapper";
+import { DataPoint } from "./types";
+import { calculateAggregates } from "./utils";
 
 export default function Home() {
   const [dataToDisplay, setDataToDisplay] = useState<DataPoint[]>([]);
@@ -26,7 +26,7 @@ export default function Home() {
   );
   const [settingPointsPerInterval, setSettingPointsPerInterval] =
     useState<number>(DEFAULT_POINTS_PER_INTERVAL); // Default value of points per interval
-  const [settingTestMode, setSettingTestMode] = useState<boolean>(true); // Test mode enabled by default
+  const [settingTestMode, setSettingTestMode] = useState<boolean>(false); // Test mode enabled by default
   const [offset, setOffset] = useState<number>(0); // New offset state
 
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
@@ -37,35 +37,43 @@ export default function Home() {
   const dataQueueRef = useRef<DataPoint[]>([]); // Queue to store preloaded data points
   const intervalRef = useRef<NodeJS.Timeout | null>(null); // Reference to the interval
 
+  const [isFileUploaded, setIsFileUploaded] = useState<boolean>(false);
+
+  const DOWNSAMPLE = useMemo(
+    () => Math.max(1, Math.floor(settingDisplayPoints / GRAPH_WIDTH)),
+    [settingDisplayPoints]
+  );
+
   const downsampledInitialPoints = useMemo(
     () => Math.floor(settingDisplayPoints / DOWNSAMPLE),
-    [settingDisplayPoints]
+    [settingDisplayPoints, DOWNSAMPLE]
   );
 
   const downsampledAddedPoints = useMemo(
     () => Math.floor(settingPointsPerInterval / DOWNSAMPLE),
-    [settingPointsPerInterval]
+    [settingPointsPerInterval, DOWNSAMPLE]
   );
 
   const preloadData = useCallback(() => {
-    if (!isStreaming) {
+    if (!isStreaming && (isFileUploaded || settingTestMode)) {
       setDataToDisplay([]); // Clear existing data
       dataQueueRef.current = []; // Clear the data queue
+      graphRef.current = null;
+      dygraphInstanceRef.current = null;
 
       const preloadEventSource = new EventSource(
         `/api/data?interval=${settingDataInterval}&points=${downsampledInitialPoints}&test=${settingTestMode}&offset=${offset}&downsample=${DOWNSAMPLE}`
       );
       preloadEventSource.onmessage = (event) => {
         const parsedData: DataPoint[] = JSON.parse(event.data);
+
         dataQueueRef.current.push(...parsedData);
-        if (dataQueueRef.current.length >= downsampledInitialPoints) {
-          const preloadedData = dataQueueRef.current.slice(
-            0,
-            downsampledInitialPoints
-          );
-          setDataToDisplay(preloadedData); // Preload the graph with data
-          preloadEventSource.close(); // Close the preload connection
-        }
+        const preloadedData = dataQueueRef.current.slice(
+          0,
+          downsampledInitialPoints
+        );
+        setDataToDisplay(preloadedData); // Preload the graph with data
+        preloadEventSource.close(); // Close the preload connection
       };
       preloadEventSource.onerror = () => {
         preloadEventSource.close();
@@ -76,7 +84,9 @@ export default function Home() {
     settingDataInterval,
     downsampledInitialPoints,
     settingTestMode,
+    isFileUploaded,
     offset,
+    DOWNSAMPLE,
   ]);
 
   const startStreaming = () => {
@@ -142,6 +152,27 @@ export default function Home() {
     setIsStreaming(false);
   };
 
+  const handleFileUpload = useCallback(async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch("/api/data", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.ok) {
+        console.log("File uploaded successfully");
+        setIsFileUploaded(true);
+      } else {
+        console.error("Failed to upload file");
+      }
+    } catch (error) {
+      console.error("Error uploading file:", error);
+    }
+  }, []);
+
   useEffect(() => {
     return () => {
       if (eventSourceRef.current?.readyState === EventSource.OPEN) {
@@ -154,21 +185,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!dygraphInstanceRef.current && graphRef.current) {
-      // Initialize the graph once
-      dygraphInstanceRef.current = new Dygraph(graphRef.current, [], {
-        labels: ["X", "Y"],
-        width: 800,
-        height: 400,
-        xlabel: "X Axis",
-        ylabel: "Y Axis",
-        strokeWidth: 2,
-        drawPoints: true,
-        errorBars: true,
-        pointSize: 3,
-      });
-    }
-
     if (dataToDisplay.length === 0) return;
 
     // Calculate y-axis padding
@@ -179,6 +195,19 @@ export default function Home() {
 
     // Update the data of the graph
     const plotData = dataToDisplay.map((d) => [d.x, d.y]);
+
+    if (!dygraphInstanceRef.current && graphRef.current) {
+      // Initialize the graph once
+      dygraphInstanceRef.current = new Dygraph(graphRef.current, plotData, {
+        labels: ["X", "Y"],
+        width: GRAPH_WIDTH,
+        height: GRAPH_HEIGHT,
+        strokeWidth: 2,
+        errorBars: true,
+        valueRange: [yMin - yPadding, yMax + yPadding],
+      });
+    }
+
     dygraphInstanceRef.current?.updateOptions({
       file: plotData,
       valueRange: [yMin - yPadding, yMax + yPadding], // Apply y-axis padding
@@ -189,22 +218,40 @@ export default function Home() {
     preloadData();
   }, [settingPointsPerInterval, preloadData, offset]); // Add offset to dependency array
 
+  const aggregates = useMemo(
+    () => calculateAggregates(dataToDisplay),
+    [dataToDisplay]
+  );
+
   return (
-    <GraphInterface
-      settingDataInterval={settingDataInterval}
-      setSettingDataInterval={setSettingDataInterval}
-      settingDisplayPoints={settingDisplayPoints}
-      setSettingDisplayPoints={setSettingDisplayPoints}
-      settingPointsPerInterval={settingPointsPerInterval}
-      setSettingPointsPerInterval={setSettingPointsPerInterval}
-      settingTestMode={settingTestMode}
-      setSettingTestMode={setSettingTestMode}
-      isStreaming={isStreaming}
-      startStreaming={startStreaming}
-      stopStreaming={stopStreaming}
-      graphRef={graphRef}
-      offset={offset} // Pass the offset state
-      setOffset={setOffset} // Pass the offset setter
-    />
+    <Wrapper>
+      <h1>Plot Drawing App</h1>
+
+      <Controls
+        settingDataInterval={settingDataInterval}
+        setSettingDataInterval={setSettingDataInterval}
+        settingDisplayPoints={settingDisplayPoints}
+        setSettingDisplayPoints={setSettingDisplayPoints}
+        settingPointsPerInterval={settingPointsPerInterval}
+        setSettingPointsPerInterval={setSettingPointsPerInterval}
+        settingTestMode={settingTestMode}
+        setSettingTestMode={setSettingTestMode}
+        isStreaming={isStreaming}
+        startStreaming={startStreaming}
+        stopStreaming={stopStreaming}
+        offset={offset}
+        setOffset={setOffset}
+        handleFileUpload={handleFileUpload}
+        isFileUploaded={isFileUploaded}
+        setIsFileUploaded={setIsFileUploaded}
+      />
+      <Graph
+        graphRef={graphRef}
+        isLoading={dataToDisplay.length === 0}
+        settingTestMode={settingTestMode}
+        isFileUploaded={isFileUploaded}
+      />
+      {dataToDisplay.length > 0 && <Aggregates {...aggregates} />}
+    </Wrapper>
   );
 }

@@ -2,6 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { parse } from "csv-parse";
 import fs from "fs";
 import path from "path";
+import { Readable } from "stream";
+
+// Helper function to convert web stream to Node.js stream
+function webStreamToNodeStream(
+  webStream: ReadableStream<Uint8Array>
+): Readable {
+  const reader = webStream.getReader();
+  const nodeStream = new Readable({
+    read() {
+      reader
+        .read()
+        .then(({ done, value }) => {
+          if (done) {
+            this.push(null);
+          } else {
+            this.push(Buffer.from(value));
+          }
+        })
+        .catch((err) => {
+          this.emit("error", err);
+        });
+    },
+  });
+  return nodeStream;
+}
 
 // Downsampling function
 function downsampleData(
@@ -85,6 +110,7 @@ export async function GET(req: NextRequest) {
       const parser = parse({ columns: false, trim: true });
 
       let rows: { x: number; y: [number, number] }[] = [];
+      let index = 0;
 
       readStream.pipe(parser);
 
@@ -93,10 +119,12 @@ export async function GET(req: NextRequest) {
       });
 
       parser.on("end", () => {
-        let index = offset;
         const emitData = () => {
-          if (index < rows.length) {
-            const chunk = rows.slice(index, index + points * downsample);
+          if (index + offset < rows.length) {
+            const chunk = rows.slice(
+              index + offset,
+              index + offset + points * downsample
+            );
             if (chunk.length > 0) {
               const downsampledChunk = downsampleData(chunk, downsample);
               controller.enqueue(
@@ -128,4 +156,28 @@ export async function GET(req: NextRequest) {
       Connection: "keep-alive",
     },
   });
+}
+
+export async function POST(req: NextRequest) {
+  const formData = await req.formData();
+  const file = formData.get("file");
+
+  if (!(file instanceof Blob)) {
+    return new NextResponse("No file uploaded or invalid file", {
+      status: 400,
+    });
+  }
+
+  const filePath = path.resolve("./public", "data.csv");
+  const fileStream = fs.createWriteStream(filePath);
+
+  const readable = webStreamToNodeStream(file.stream());
+
+  await new Promise((resolve, reject) => {
+    readable.pipe(fileStream);
+    readable.on("end", resolve);
+    readable.on("error", reject);
+  });
+
+  return new NextResponse("File uploaded successfully", { status: 200 });
 }
