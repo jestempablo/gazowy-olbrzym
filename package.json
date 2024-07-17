@@ -9,16 +9,21 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "csv-parse": "^5.5.6",
+    "d3": "^7.9.0",
+    "dygraphs": "^2.2.1",
+    "next": "14.2.5",
     "react": "^18",
-    "react-dom": "^18",
-    "next": "14.2.5"
+    "react-dom": "^18"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@types/d3": "^7.4.3",
+    "@types/dygraphs": "^2.1.10",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "eslint": "^8",
-    "eslint-config-next": "14.2.5"
+    "eslint-config-next": "14.2.5",
+    "typescript": "^5"
   }
 }
