@@ -9,6 +9,10 @@ interface GraphInterfaceProps {
   startStreaming: () => void;
   stopStreaming: () => void;
   graphRef: React.RefObject<HTMLDivElement>;
+  offset: number;
+  setOffset: (offset: number) => void;
+  settingPointsPerInterval: number;
+  setSettingPointsPerInterval: (points: number) => void;
 }
 
 export const GraphInterface = ({
@@ -22,6 +26,10 @@ export const GraphInterface = ({
   startStreaming,
   stopStreaming,
   graphRef,
+  offset,
+  setOffset,
+  settingPointsPerInterval,
+  setSettingPointsPerInterval,
 }: GraphInterfaceProps) => {
   return (
     <div>
@@ -29,27 +37,48 @@ export const GraphInterface = ({
       <div
         style={{
           display: "flex",
-          flexDirection: "row",
+          flexDirection: "column",
           marginBottom: "20px",
           gap: "10px",
+          width: 400,
         }}
       >
         <label>
-          Interval (ms):
-          <input
-            type="number"
-            value={settingDataInterval}
-            disabled={isStreaming}
-            onChange={(e) => setSettingDataInterval(parseInt(e.target.value))}
-          />
-        </label>
-        <label>
-          Points per chunk:
+          N (displayed points):
           <input
             type="number"
             value={settingDisplayPoints}
             disabled={isStreaming}
-            onChange={(e) => setSettingDisplayPoints(parseInt(e.target.value))}
+            onChange={(e) => setSettingDisplayPoints(Number(e.target.value))}
+          />
+        </label>
+        <label>
+          T (load more interval):
+          <input
+            type="number"
+            value={settingDataInterval}
+            disabled={isStreaming}
+            onChange={(e) => setSettingDataInterval(Number(e.target.value))}
+          />
+        </label>
+        <label>
+          P (points per interval):
+          <input
+            type="number"
+            value={settingPointsPerInterval}
+            disabled={isStreaming}
+            onChange={(e) =>
+              setSettingPointsPerInterval(Number(e.target.value))
+            }
+          />
+        </label>
+        <label>
+          S (offset):
+          <input
+            type="number"
+            value={offset}
+            disabled={isStreaming}
+            onChange={(e) => setOffset(Number(e.target.value))}
           />
         </label>
         <label>
