@@ -1,3 +1,4 @@
+import { useMemo, useRef } from "react";
 import {
   DEFAULT_DISPLAYED_POINTS,
   DEFAULT_INTERVAL,
@@ -41,6 +42,7 @@ export const Controls = ({
   isFileUploaded,
   setIsFileUploaded,
 }: ControlsProps) => {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const resetForm = () => {
     setSettingDataInterval(DEFAULT_INTERVAL);
     setSettingDisplayPoints(DEFAULT_DISPLAYED_POINTS);
@@ -48,7 +50,28 @@ export const Controls = ({
     setSettingTestMode(false);
     setOffset(0);
     setIsFileUploaded(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
+
+  const isDirty = useMemo(() => {
+    return (
+      settingDataInterval !== DEFAULT_INTERVAL ||
+      settingDisplayPoints !== DEFAULT_DISPLAYED_POINTS ||
+      settingPointsPerInterval !== DEFAULT_POINTS_PER_INTERVAL ||
+      settingTestMode ||
+      offset !== 0 ||
+      isFileUploaded
+    );
+  }, [
+    offset,
+    settingDataInterval,
+    settingDisplayPoints,
+    settingPointsPerInterval,
+    settingTestMode,
+    isFileUploaded,
+  ]);
 
   return (
     <div
@@ -105,10 +128,13 @@ export const Controls = ({
           onChange={(e) => setSettingTestMode(e.target.checked)}
         />
       </label>
-      <button onClick={resetForm}>Reset form</button>
+      <button onClick={resetForm} disabled={!isDirty}>
+        Reset form
+      </button>
       <label>
         Upload CSV:
         <input
+          ref={fileInputRef}
           type="file"
           accept=".csv"
           onChange={(e) => {

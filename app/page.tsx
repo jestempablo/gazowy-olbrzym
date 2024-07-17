@@ -251,7 +251,9 @@ export default function Home() {
         settingTestMode={settingTestMode}
         isFileUploaded={isFileUploaded}
       />
-      {dataToDisplay.length > 0 && <Aggregates {...aggregates} />}
+      {(isFileUploaded || settingTestMode) && dataToDisplay.length > 0 && (
+        <Aggregates {...aggregates} />
+      )}
     </Wrapper>
   );
 }

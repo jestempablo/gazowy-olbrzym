@@ -22,10 +22,11 @@ export const Graph = ({
         justifyContent: "center",
         height: GRAPH_HEIGHT,
         width: GRAPH_WIDTH,
+        border: "1px solid #ccc",
       }}
     >
       {!settingTestMode && !isFileUploaded ? (
-        <div>Upload a file or enable test mode to start plotting</div>
+        "Upload a file or enable test mode to start plotting"
       ) : isLoading ? (
         "Please wait..."
       ) : (
