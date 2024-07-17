@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_DISPLAYED_POINTS,
   DEFAULT_INTERVAL,
@@ -23,6 +23,32 @@ interface ControlsProps {
   isFileUploaded: boolean;
   setIsFileUploaded: (isFileUploaded: boolean) => void;
 }
+
+const useDebounceState = (
+  originalState: number,
+  setOriginalState: (value: number) => void
+) => {
+  const [value, setValue] = useState(originalState);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    timeoutRef.current = setTimeout(() => {
+      setOriginalState(value);
+    }, 1500);
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [value, setOriginalState]);
+
+  return [value, setValue] as const;
+};
 
 export const Controls = ({
   settingDataInterval,
@@ -73,6 +99,22 @@ export const Controls = ({
     isFileUploaded,
   ]);
 
+  const [offsetDebounced, setOffsetDebounced] = useDebounceState(
+    offset,
+    setOffset
+  );
+
+  const [settingDataIntervalDebounced, setSettingDataIntervalDebounced] =
+    useDebounceState(settingDataInterval, setSettingDataInterval);
+
+  const [settingDisplayPointsDebounced, setSettingDisplayPointsDebounced] =
+    useDebounceState(settingDisplayPoints, setSettingDisplayPoints);
+
+  const [
+    settingPointsPerIntervalDebounced,
+    setSettingPointsPerIntervalDebounced,
+  ] = useDebounceState(settingPointsPerInterval, setSettingPointsPerInterval);
+
   return (
     <div
       style={{
@@ -83,40 +125,70 @@ export const Controls = ({
         width: 400,
       }}
     >
-      <label>
-        N (displayed points):
+      <label
+        style={{
+          width: "100%",
+          display: "flex",
+          justifyContent: "space-between",
+        }}
+      >
+        <span>N (displayed points):</span>
         <input
           type="number"
-          value={settingDisplayPoints}
+          value={settingDisplayPointsDebounced}
           disabled={isStreaming}
-          onChange={(e) => setSettingDisplayPoints(Number(e.target.value))}
+          onChange={(e) =>
+            setSettingDisplayPointsDebounced(Number(e.target.value))
+          }
         />
       </label>
-      <label>
-        T (load more interval):
+      <label
+        style={{
+          width: "100%",
+          display: "flex",
+          justifyContent: "space-between",
+        }}
+      >
+        <span>T (load more interval):</span>
         <input
           type="number"
-          value={settingDataInterval}
+          value={settingDataIntervalDebounced}
           disabled={isStreaming}
-          onChange={(e) => setSettingDataInterval(Number(e.target.value))}
+          onChange={(e) =>
+            setSettingDataIntervalDebounced(Number(e.target.value))
+          }
         />
       </label>
-      <label>
-        P (points per interval):
+      <label
+        style={{
+          width: "100%",
+          display: "flex",
+          justifyContent: "space-between",
+        }}
+      >
+        <span>P (points per interval):</span>
         <input
           type="number"
-          value={settingPointsPerInterval}
+          value={settingPointsPerIntervalDebounced}
           disabled={isStreaming}
-          onChange={(e) => setSettingPointsPerInterval(Number(e.target.value))}
+          onChange={(e) =>
+            setSettingPointsPerIntervalDebounced(Number(e.target.value))
+          }
         />
       </label>
-      <label>
-        S (offset):
+      <label
+        style={{
+          width: "100%",
+          display: "flex",
+          justifyContent: "space-between",
+        }}
+      >
+        <span>S (offset):</span>
         <input
           type="number"
-          value={offset}
+          value={offsetDebounced}
           disabled={isStreaming}
-          onChange={(e) => setOffset(Number(e.target.value))}
+          onChange={(e) => setOffsetDebounced(Number(e.target.value))}
         />
       </label>
       <label>

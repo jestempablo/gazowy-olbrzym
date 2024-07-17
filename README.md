@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Plot app
 
-## Getting Started
+### How to run?
 
-First, run the development server:
+Clone or download, then `npm install`, then `npm run dev`
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Open `localhost:3000`
+
+### How to use?
+
+Upload your CSV or use "Test mode"
+
+Example CSV format:
+
+```
+0,-0.028733515256167692
+1,0.002802245633516866
+2,0.03190477324749414
+3,0.030729641289156617
+4,0.017374581341199485
+5,0.05722880107852703
+6,0.03166829951665237
+7,0.03324601911350197
+8,0.017923827351765093
+9,-0.026738180448497212
+10,0.014236533920869071
+...
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Set your desired `N`, `T`, `P` and `S` or leave the defaults
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Click `Start`
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+### It could be more pretty
 
-## Learn More
+Correct but given the specifics of the task I decided to focus on, and dive deeper into client-side performance optimization by moving most of data manipulation part to server side
 
-To learn more about Next.js, take a look at the following resources:
+### What else could be done here?
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+1. As said - UI/UX, MaterialUI, more transitions, more animations
+2. Consider using `dygraphs` built in range selector instead of custom data manipulation
+3. Consider ditching `dygraphs` in favor of `d3js` or similar for further performance improvement
+4. Deployment, but that would require some hardening also there supposedly is a 5MB limit on data upload on Vercel anyway
+5. Form validation and sanitization, for example T min of 16
+6. Simplify the code A LOT

@@ -205,6 +205,7 @@ export default function Home() {
         strokeWidth: 2,
         errorBars: true,
         valueRange: [yMin - yPadding, yMax + yPadding],
+        color: "#890089",
       });
     }
 
