@@ -42,27 +42,37 @@ const useDebounceState = (
   setIsDebounceActive: (value: boolean) => void
 ) => {
   const [value, setValue] = useState(originalState);
+  const [hasError, setHasError] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const setValueWithErrorCheck = (newValue: number, isError?: boolean) => {
+    setHasError(isError || false);
+    setValue(newValue);
+  };
 
   useEffect(() => {
     setIsDebounceActive(true);
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
+    if (!hasError) {
+      timeoutRef.current = setTimeout(() => {
+        if (!hasError) setOriginalState(value);
 
-    timeoutRef.current = setTimeout(() => {
-      setOriginalState(value);
+        setIsDebounceActive(false);
+      }, 1500);
+    } else {
       setIsDebounceActive(false);
-    }, 1500);
+    }
 
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [value, setOriginalState, setIsDebounceActive]);
+  }, [value, setOriginalState, setIsDebounceActive, hasError]);
 
-  return [value, setValue] as const;
+  return [value, setValueWithErrorCheck] as const;
 };
 
 const clearLeadingZeros = (value: string | number) => {
@@ -161,17 +171,23 @@ export const Controls = ({
   return (
     <Stack spacing={2} sx={{ width: 800, pb: 2 }}>
       <TextField
-        label="N (displayed points):"
+        label={`N (displayed points${
+          downsampleRate > 1 ? `, downsampled by ${downsampleRate}` : ""
+        })`}
         type="number"
         value={clearLeadingZeros(settingDisplayPointsDebounced)}
         disabled={isStreaming}
         onChange={(e) =>
-          setSettingDisplayPointsDebounced(Number(e.target.value))
+          setSettingDisplayPointsDebounced(
+            Number(e.target.value),
+            settingDisplayPointsDebounced > 100000000 ||
+              settingDisplayPointsDebounced < downsampleRate
+          )
         }
-        helperText={
-          downsampleRate > 1
-            ? `Will be downsampled to ${downsampleRate} "x" values per point`
-            : undefined
+        helperText={`Min value: ${downsampleRate}, max value: 100000000`}
+        error={
+          settingDisplayPointsDebounced > 100000000 ||
+          settingDisplayPointsDebounced < downsampleRate
         }
       />
 
@@ -181,23 +197,34 @@ export const Controls = ({
         value={clearLeadingZeros(settingDataIntervalDebounced)}
         disabled={isStreaming}
         onChange={(e) =>
-          setSettingDataIntervalDebounced(Number(e.target.value))
+          setSettingDataIntervalDebounced(
+            Number(e.target.value),
+            settingDataIntervalDebounced < 16
+          )
         }
+        helperText="Min value: 16"
+        error={settingDataIntervalDebounced < 16}
       />
 
       <TextField
-        label="P (points per interval)"
+        label={`P (points per interval${
+          downsampleRate > 1
+            ? `, subject to downsample: ${clearLeadingZeros(
+                settingPointsPerIntervalDebounced
+              )} -> ${settingPointsPerIntervalDebounced * downsampleRate}`
+            : ""
+        })`}
         type="number"
         value={clearLeadingZeros(settingPointsPerIntervalDebounced)}
         disabled={isStreaming}
         onChange={(e) =>
-          setSettingPointsPerIntervalDebounced(Number(e.target.value))
+          setSettingPointsPerIntervalDebounced(
+            Number(e.target.value),
+            settingPointsPerIntervalDebounced < downsampleRate
+          )
         }
-        helperText={
-          downsampleRate > 1
-            ? `Do not set lower than ${downsampleRate}`
-            : undefined
-        }
+        helperText={`Min value: ${downsampleRate}`}
+        error={settingPointsPerIntervalDebounced < downsampleRate}
       />
 
       <TextField
@@ -205,7 +232,11 @@ export const Controls = ({
         type="number"
         value={clearLeadingZeros(offsetDebounced)}
         disabled={isStreaming}
-        onChange={(e) => setOffsetDebounced(Number(e.target.value))}
+        onChange={(e) =>
+          setOffsetDebounced(Number(e.target.value), offsetDebounced < 0)
+        }
+        helperText="Min value: 0"
+        error={offsetDebounced < 0}
       />
 
       <FormControlLabel
