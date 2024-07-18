@@ -28,23 +28,35 @@ function webStreamToNodeStream(
   return nodeStream;
 }
 
-// Downsampling function
+// Optimized downsampling function
 function downsampleData(
   data: { x: number; y: [number, number] }[],
   factor: number
 ) {
   const downsampled: { x: number; y: [number, number] }[] = [];
+  let sumX = 0;
+  let sumY = 0;
+  let minY = Infinity;
+  let maxY = -Infinity;
 
-  for (let i = 0; i < data.length; i += factor) {
-    const chunk = data.slice(i, i + factor);
-    const avgX = chunk.reduce((sum, point) => sum + point.x, 0) / chunk.length;
-    const avgY =
-      chunk.reduce((sum, point) => sum + point.y[0], 0) / chunk.length;
-    const minY = Math.min(...chunk.map((point) => point.y[0]));
-    const maxY = Math.max(...chunk.map((point) => point.y[0]));
-    const error = (maxY - minY) / factor;
+  for (let i = 0; i < data.length; i++) {
+    sumX += data[i].x;
+    sumY += data[i].y[0];
+    minY = Math.min(minY, data[i].y[0]);
+    maxY = Math.max(maxY, data[i].y[0]);
 
-    downsampled.push({ x: avgX, y: [avgY, error] });
+    if ((i + 1) % factor === 0 || i === data.length - 1) {
+      const avgX = sumX / factor;
+      const avgY = sumY / factor;
+      const error = (maxY - minY) / factor;
+      downsampled.push({ x: avgX, y: [avgY, error] });
+
+      // Reset accumulators
+      sumX = 0;
+      sumY = 0;
+      minY = Infinity;
+      maxY = -Infinity;
+    }
   }
 
   return downsampled;
@@ -62,19 +74,25 @@ export async function GET(req: NextRequest) {
   );
 
   if (test) {
+    let lastY = Math.floor(Math.random() * 100); // Initialize lastY with a random value
+
     const readable = new ReadableStream({
       start(controller) {
         const generateRandomData = () => {
           let index = offset;
           const emitData = () => {
-            if (index < 100000) {
+            if (index < 1000000000) {
               const chunk: {
                 x: number;
                 y: [number, number];
-              }[] = Array.from({ length: points * downsample }, (_, i) => ({
-                x: index + i,
-                y: [Math.floor(Math.random() * 100), 0],
-              }));
+              }[] = Array.from({ length: points * downsample }, (_, i) => {
+                const newY = lastY + (Math.random() - 0.5) * 10; // Generate newY close to lastY
+                lastY = newY; // Update lastY for the next iteration
+                return {
+                  x: index + i,
+                  y: [newY, 0],
+                };
+              });
 
               const downsampledChunk = downsampleData(chunk, downsample);
               controller.enqueue(

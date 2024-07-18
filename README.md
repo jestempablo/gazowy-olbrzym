@@ -27,6 +27,8 @@ Example CSV format:
 ...
 ```
 
+Example file is available at the root level of the project.
+
 Set your desired `N`, `T`, `P` and `S` or leave the defaults
 
 Click `Start`

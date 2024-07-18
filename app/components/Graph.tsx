@@ -1,10 +1,28 @@
-import { GRAPH_HEIGHT, GRAPH_WIDTH } from "../constants";
+import {
+  Card,
+  CardActionArea,
+  CardContent,
+  CardMedia,
+  CircularProgress,
+  Divider,
+  Grid,
+  Stack,
+  Typography,
+} from "@mui/material";
+import { GRAPH_WIDTH } from "../constants";
 
 interface GraphProps {
   graphRef: React.RefObject<HTMLDivElement>;
   isLoading: boolean;
   settingTestMode: boolean;
   isFileUploaded: boolean;
+  min: number;
+  max: number;
+  average: number;
+  variance: number;
+  xMin: number;
+  xMax: number;
+  downsampleRate: number;
 }
 
 export const Graph = ({
@@ -12,41 +30,99 @@ export const Graph = ({
   isLoading,
   settingTestMode,
   isFileUploaded,
+  min,
+  max,
+  average,
+  variance,
+  xMin,
+  xMax,
+  downsampleRate,
 }: GraphProps) => {
   return (
-    <div
+    <Card
       style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        height: GRAPH_HEIGHT,
         width: GRAPH_WIDTH,
-        border: "1px solid #ccc",
       }}
     >
       {!settingTestMode && !isFileUploaded ? (
-        "Upload a file or enable test mode to start plotting"
+        <CardContent>
+          Upload a file or enable test mode to start plotting
+        </CardContent>
       ) : isLoading ? (
-        "Please wait..."
+        <CardContent>
+          <CircularProgress />
+        </CardContent>
       ) : (
-        <div ref={graphRef} />
+        <>
+          <CardMedia>
+            <div ref={graphRef} />
+          </CardMedia>
+          <CardContent>
+            <Grid container sx={{ textAlign: "center" }} columnSpacing={2}>
+              <Grid item xs={3}>
+                Y Min
+                <Divider />
+              </Grid>
+              <Grid item xs={3}>
+                Y Max
+                <Divider />
+              </Grid>
+              <Grid item xs={3}>
+                Average
+                <Divider />
+              </Grid>
+              <Grid item xs={3}>
+                Variance
+                <Divider />
+              </Grid>
+              <Grid item xs={3}>
+                <Typography variant="subtitle2">{min}</Typography>
+              </Grid>
+              <Grid item xs={3}>
+                <Typography variant="subtitle2">{max}</Typography>
+              </Grid>
+              <Grid item xs={3}>
+                <Typography variant="subtitle2">{average}</Typography>
+              </Grid>
+              <Grid item xs={3}>
+                <Typography variant="subtitle2">{variance}</Typography>
+              </Grid>
+              <Grid item xs={3} pt={3}>
+                X Min
+                <Divider />
+              </Grid>
+              <Grid item xs={3} pt={3}>
+                X Max
+                <Divider />
+              </Grid>
+              <Grid item xs={3} pt={3}>
+                Downsample rate
+                <Divider />
+              </Grid>
+              <Grid item xs={3} pt={3}>
+                Paweł
+                <Divider />
+              </Grid>
+              <Grid item xs={3}>
+                <Typography variant="subtitle2">
+                  {Math.ceil(xMin) - Math.floor(downsampleRate / 2)}
+                </Typography>
+              </Grid>
+              <Grid item xs={3}>
+                <Typography variant="subtitle2">
+                  {Math.floor(xMax) + Math.ceil(downsampleRate / 2)}
+                </Typography>
+              </Grid>
+              <Grid item xs={3}>
+                <Typography variant="subtitle2">{downsampleRate}</Typography>
+              </Grid>
+              <Grid item xs={3}>
+                <Typography variant="subtitle2">Foryński</Typography>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </>
       )}
-    </div>
+    </Card>
   );
 };
-
-/*
-    <GraphInterface
-      settingDataInterval={settingDataInterval}
-      setSettingDataInterval={setSettingDataInterval}
-      settingDisplayPoints={settingDisplayPoints}
-      setSettingDisplayPoints={setSettingDisplayPoints}
-      settingTestMode={settingTestMode}
-      setSettingTestMode={setSettingTestMode}
-      isStreaming={isStreaming}
-      startStreaming={startStreaming}
-      stopStreaming={stopStreaming}
-      graphRef={graphRef}
-    />
-    */

@@ -11,7 +11,6 @@ import {
   GRAPH_HEIGHT,
 } from "./constants";
 import { Controls } from "./components/Controls";
-import { Aggregates } from "./components/Aggregates";
 import { Wrapper } from "./components/Wrapper";
 import { DataPoint } from "./types";
 import { calculateAggregates } from "./utils";
@@ -30,6 +29,7 @@ export default function Home() {
   const [offset, setOffset] = useState<number>(0); // New offset state
 
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
 
   const graphRef = useRef<HTMLDivElement | null>(null);
   const dygraphInstanceRef = useRef<Dygraph | null>(null);
@@ -39,30 +39,30 @@ export default function Home() {
 
   const [isFileUploaded, setIsFileUploaded] = useState<boolean>(false);
 
-  const DOWNSAMPLE = useMemo(
+  const downsampleRate = useMemo(
     () => Math.max(1, Math.floor(settingDisplayPoints / GRAPH_WIDTH)),
     [settingDisplayPoints]
   );
 
   const downsampledInitialPoints = useMemo(
-    () => Math.floor(settingDisplayPoints / DOWNSAMPLE),
-    [settingDisplayPoints, DOWNSAMPLE]
+    () => Math.floor(settingDisplayPoints / downsampleRate),
+    [settingDisplayPoints, downsampleRate]
   );
 
   const downsampledAddedPoints = useMemo(
-    () => Math.floor(settingPointsPerInterval / DOWNSAMPLE),
-    [settingPointsPerInterval, DOWNSAMPLE]
+    () => Math.floor(settingPointsPerInterval / downsampleRate),
+    [settingPointsPerInterval, downsampleRate]
   );
 
   const preloadData = useCallback(() => {
-    if (!isStreaming && (isFileUploaded || settingTestMode)) {
+    if (!isStreaming && !isPaused && (isFileUploaded || settingTestMode)) {
       setDataToDisplay([]); // Clear existing data
       dataQueueRef.current = []; // Clear the data queue
       graphRef.current = null;
       dygraphInstanceRef.current = null;
 
       const preloadEventSource = new EventSource(
-        `/api/data?interval=${settingDataInterval}&points=${downsampledInitialPoints}&test=${settingTestMode}&offset=${offset}&downsample=${DOWNSAMPLE}`
+        `/api/data?interval=${settingDataInterval}&points=${downsampledInitialPoints}&test=${settingTestMode}&offset=${offset}&downsample=${downsampleRate}`
       );
       preloadEventSource.onmessage = (event) => {
         const parsedData: DataPoint[] = JSON.parse(event.data);
@@ -80,13 +80,14 @@ export default function Home() {
       };
     }
   }, [
+    isPaused,
     isStreaming,
     settingDataInterval,
     downsampledInitialPoints,
     settingTestMode,
     isFileUploaded,
     offset,
-    DOWNSAMPLE,
+    downsampleRate,
   ]);
 
   const startStreaming = () => {
@@ -99,7 +100,7 @@ export default function Home() {
     const streamingOffset = settingDisplayPoints + offset + 1; // Adjust offset to start streaming from points + 1
 
     eventSourceRef.current = new EventSource(
-      `/api/data?interval=${settingDataInterval}&points=${settingPointsPerInterval}&test=${settingTestMode}&offset=${streamingOffset}&downsample=${DOWNSAMPLE}`
+      `/api/data?interval=${settingDataInterval}&points=${downsampledAddedPoints}&test=${settingTestMode}&offset=${streamingOffset}&downsample=${downsampleRate}`
     );
 
     eventSourceRef.current.onmessage = (event) => {
@@ -119,13 +120,23 @@ export default function Home() {
 
     setIsStreaming(true);
 
-    // Start the rolling plot update
+    // Calculate the number of points to add in each frame
+    const minFrameInterval = 32; // 16ms per frame for ~60 FPS
+    const totalInterval = settingDataInterval; // Total interval for new points
+    const pointsPerInterval = settingPointsPerInterval;
+    const framesPerInterval = totalInterval / minFrameInterval;
+    const pointsPerFrame = Math.ceil(pointsPerInterval / framesPerInterval);
+    const finalIntervalMs = Math.max(
+      minFrameInterval,
+      Math.ceil((totalInterval / pointsPerInterval) * pointsPerFrame)
+    );
+
     const updatePlot = () => {
       if (dataQueueRef.current.length > 0) {
-        const nextPoint = dataQueueRef.current.shift(); // Get the next data point
-        if (nextPoint) {
+        const nextPoints = dataQueueRef.current.splice(0, pointsPerFrame); // Get the next batch of data points
+        if (nextPoints.length > 0) {
           setDataToDisplay((prevData) => {
-            const newData = [...prevData, nextPoint].slice(
+            const newData = [...prevData, ...nextPoints].slice(
               -downsampledInitialPoints
             ); // Maintain the last `points` number of points
             return newData;
@@ -134,11 +145,8 @@ export default function Home() {
       }
     };
 
-    // Synchronize plot update with data interval
-    intervalRef.current = setInterval(
-      updatePlot,
-      settingDataInterval / downsampledAddedPoints
-    );
+    // Synchronize plot update with the frame interval
+    intervalRef.current = setInterval(updatePlot, finalIntervalMs);
   };
 
   const stopStreaming = () => {
@@ -149,6 +157,7 @@ export default function Home() {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+    setIsPaused(true);
     setIsStreaming(false);
   };
 
@@ -187,12 +196,6 @@ export default function Home() {
   useEffect(() => {
     if (dataToDisplay.length === 0) return;
 
-    // Calculate y-axis padding
-    const yValues = dataToDisplay.map((d) => d.y[0]);
-    const yMin = Math.min(...yValues);
-    const yMax = Math.max(...yValues);
-    const yPadding = yMax - yMin;
-
     // Update the data of the graph
     const plotData = dataToDisplay.map((d) => [d.x, d.y]);
 
@@ -202,16 +205,15 @@ export default function Home() {
         labels: ["X", "Y"],
         width: GRAPH_WIDTH,
         height: GRAPH_HEIGHT,
-        strokeWidth: 2,
+        strokeWidth: 1,
         errorBars: true,
-        valueRange: [yMin - yPadding, yMax + yPadding],
         color: "#890089",
+        fillAlpha: 0.5,
       });
     }
 
     dygraphInstanceRef.current?.updateOptions({
       file: plotData,
-      valueRange: [yMin - yPadding, yMax + yPadding], // Apply y-axis padding
     });
   }, [dataToDisplay]);
 
@@ -245,16 +247,25 @@ export default function Home() {
         handleFileUpload={handleFileUpload}
         isFileUploaded={isFileUploaded}
         setIsFileUploaded={setIsFileUploaded}
+        isLoading={dataToDisplay.length === 0}
+        downsampleRate={downsampleRate}
+        isPaused={isPaused}
+        setIsPaused={setIsPaused}
       />
       <Graph
         graphRef={graphRef}
         isLoading={dataToDisplay.length === 0}
         settingTestMode={settingTestMode}
         isFileUploaded={isFileUploaded}
+        {...aggregates}
+        xMin={dataToDisplay.length > 0 ? dataToDisplay[0].x : 0}
+        xMax={
+          dataToDisplay.length > 0
+            ? dataToDisplay[dataToDisplay.length - 1].x
+            : 0
+        }
+        downsampleRate={downsampleRate}
       />
-      {(isFileUploaded || settingTestMode) && dataToDisplay.length > 0 && (
-        <Aggregates {...aggregates} />
-      )}
     </Wrapper>
   );
 }
