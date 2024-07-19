@@ -66,3 +66,9 @@ In summary, this project demonstrates my ability to build a performant and optim
 10,0.014236533920869071
 ...
 ```
+
+### Todos
+
+1. Tests
+2. Deployment
+3. Make sure to handle out of range float values
