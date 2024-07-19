@@ -1,5 +1,7 @@
 # Plot app
 
+![image](https://github.com/user-attachments/assets/c248d48a-423e-4d27-b6d2-ad45c055f497)
+
 #### Overview
 
 This take-home assignment showcases my ability to develop a performant frontend and backend data streaming application using React and Next.js. The project focuses on optimizing data streaming, which may have impacted overall code quality, but given the time constraints, I am proud of the results despite potential bugs.
@@ -64,3 +66,9 @@ In summary, this project demonstrates my ability to build a performant and optim
 10,0.014236533920869071
 ...
 ```
+
+### Todos
+
+1. Tests
+2. Deployment
+3. Make sure to handle out of range float values
