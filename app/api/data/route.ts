@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
   const offset = parseInt(url.searchParams.get("offset") || "0", 10);
   const downsample = Math.max(
     1,
-    parseInt(url.searchParams.get("downsample") || "3", 10)
+    parseInt(url.searchParams.get("downsample") || "1", 10)
   );
 
   if (test) {

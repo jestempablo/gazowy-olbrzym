@@ -207,24 +207,18 @@ export const Controls = ({
       />
 
       <TextField
-        label={`P (points per interval${
-          downsampleRate > 1
-            ? `, subject to downsample: ${clearLeadingZeros(
-                settingPointsPerIntervalDebounced
-              )} -> ${settingPointsPerIntervalDebounced * downsampleRate}`
-            : ""
-        })`}
+        label={`P (points per interval)`}
         type="number"
         value={clearLeadingZeros(settingPointsPerIntervalDebounced)}
         disabled={isStreaming}
         onChange={(e) =>
           setSettingPointsPerIntervalDebounced(
             Number(e.target.value),
-            settingPointsPerIntervalDebounced < downsampleRate
+            settingPointsPerIntervalDebounced < 1
           )
         }
-        helperText={`Min value: ${downsampleRate}`}
-        error={settingPointsPerIntervalDebounced < downsampleRate}
+        helperText={`Min value: 1`}
+        error={settingPointsPerIntervalDebounced < 1}
       />
 
       <TextField

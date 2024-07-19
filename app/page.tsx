@@ -9,6 +9,7 @@ import {
   DEFAULT_POINTS_PER_INTERVAL,
   GRAPH_WIDTH,
   GRAPH_HEIGHT,
+  DEFAULT_TEST_MODE,
 } from "./constants";
 import { Controls } from "./components/Controls";
 import { Wrapper } from "./components/Wrapper";
@@ -25,7 +26,8 @@ export default function Home() {
   );
   const [settingPointsPerInterval, setSettingPointsPerInterval] =
     useState<number>(DEFAULT_POINTS_PER_INTERVAL); // Default value of points per interval
-  const [settingTestMode, setSettingTestMode] = useState<boolean>(false); // Test mode enabled by default
+  const [settingTestMode, setSettingTestMode] =
+    useState<boolean>(DEFAULT_TEST_MODE); // Test mode enabled by default
   const [offset, setOffset] = useState<number>(0); // New offset state
 
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
@@ -47,11 +49,6 @@ export default function Home() {
   const downsampledInitialPoints = useMemo(
     () => Math.floor(settingDisplayPoints / downsampleRate),
     [settingDisplayPoints, downsampleRate]
-  );
-
-  const downsampledAddedPoints = useMemo(
-    () => Math.floor(settingPointsPerInterval / downsampleRate),
-    [settingPointsPerInterval, downsampleRate]
   );
 
   const preloadData = useCallback(() => {
@@ -99,8 +96,17 @@ export default function Home() {
 
     const streamingOffset = settingDisplayPoints + offset + 1; // Adjust offset to start streaming from points + 1
 
+    // If pointsPerInterval is lower than downsample rate increase the interval accordingly
+    const factor = Math.max(1, downsampleRate / settingPointsPerInterval);
+
+    console.log(factor);
+
     eventSourceRef.current = new EventSource(
-      `/api/data?interval=${settingDataInterval}&points=${downsampledAddedPoints}&test=${settingTestMode}&offset=${streamingOffset}&downsample=${downsampleRate}`
+      `/api/data?interval=${
+        settingDataInterval * factor * downsampleRate
+      }&points=${
+        settingPointsPerInterval / downsampleRate
+      }&test=${settingTestMode}&offset=${streamingOffset}&downsample=${downsampleRate}`
     );
 
     eventSourceRef.current.onmessage = (event) => {
@@ -123,7 +129,7 @@ export default function Home() {
     // Calculate the number of points to add in each frame
     const minFrameInterval = 32; // 16ms per frame for ~60 FPS
     const totalInterval = settingDataInterval; // Total interval for new points
-    const pointsPerInterval = settingPointsPerInterval;
+    const pointsPerInterval = settingPointsPerInterval / downsampleRate;
     const framesPerInterval = totalInterval / minFrameInterval;
     const pointsPerFrame = Math.ceil(pointsPerInterval / framesPerInterval);
     const finalIntervalMs = Math.max(
