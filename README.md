@@ -1,56 +1,55 @@
+
 # Plot app
 
 ![image](https://github.com/user-attachments/assets/c248d48a-423e-4d27-b6d2-ad45c055f497)
 
-#### Overview
-
-This take-home assignment showcases my ability to develop a performant frontend and backend data streaming application using React and Next.js. The project focuses on optimizing data streaming, which may have impacted overall code quality, but given the time constraints, I am proud of the results despite potential bugs.
-
-#### Frontend Implementation
-
-The frontend part of the application is implemented in React and makes use of hooks and memoization for optimal performance. Here is a brief overview of its key components and functionalities:
-
-1.  **Graph Component**: Utilizes the `Dygraph` library for rendering real-time data on a graph. It is initialized and updated with the data points provided by the backend.
-2.  **Controls Component**: Provides user interface elements to configure various settings like data interval, display points, points per interval, test mode, and offset. It also handles file uploads.
-3.  **Data Streaming and Preloading**: Data streaming is initiated and controlled through the use of the `EventSource`API. Preloaded data is managed via a queue to ensure smooth and continuous updates to the graph.
-4.  **State Management**: State variables are used extensively to manage data points, settings, and streaming states. Hooks such as `useState`, `useRef`, `useCallback`, and `useMemo` are utilized for efficient state management and performance optimization.
-5.  **Dynamic Downsampling**: Downsampling logic is implemented to ensure that the graph displays data points efficiently, even when dealing with large datasets.
-
-#### Backend Implementation
-
-The backend part of the application is built using Next.js API routes. Here are the primary functionalities it provides:
-
-1.  **Data Generation and Streaming (GET /api/data)**: This endpoint generates and streams data points in real-time. It supports both test mode (generating random data) and file-based data streaming. Downsampling is applied to optimize the amount of data sent to the client.
-2.  **File Upload (POST /api/data)**: This endpoint handles file uploads and stores the uploaded data in a CSV format. It converts the web stream to a Node.js stream for efficient file handling.
-3.  **Downsampling Logic**: The backend includes an optimized downsampling function that reduces the number of data points sent to the client, minimizing bandwidth usage and ensuring smooth graph rendering.
-
-#### Highlights and Considerations
-
-- **Optimization Focus**: The primary focus of this project was to optimize data streaming to provide a smooth user experience, especially when handling large datasets or real-time data.
-- **Potential Bugs**: Due to the emphasis on optimization and time constraints, some areas of the code may contain bugs or lack polish. Nonetheless, the core functionality demonstrates the intended performance improvements.
-- **Performance Trade-offs**: While the code may not adhere strictly to best practices in some areas, the performance gains achieved through optimization were a priority for this assignment.
-
-#### How It Works
-
-1.  **Preloading Data**: When the application starts, it preloads data from the backend based on the configured settings. This data is used to initialize the graph.
-2.  **Data Streaming**: Upon starting the data streaming, the frontend requests data from the backend at specified intervals. The backend generates or reads data, applies downsampling, and streams it to the frontend.
-3.  **Graph Updating**: The frontend receives the streamed data, processes it, and updates the graph in real-time. The downsampled data ensures that the graph remains responsive and performant.
-
-In summary, this project demonstrates my ability to build a performant and optimized data streaming application using modern web technologies, with a strong focus on achieving smooth real-time data visualization.
-
-### Quick tutorial
+## Quick start
 
 1. Clone or download, then `npm install`, then `npm run dev`
-
 2. Open `localhost:3000`
-
 3. Upload your CSV or use "Test mode"
-
 4. Set your desired `N`, `T`, `P` and `S` or leave the defaults
-
 5. Click `Start`
 
-### Example CSV format:
+## About
+   
+**Overview**
+
+This project demonstrates my ability to develop a performant frontend and backend data streaming application using React and Next.js, with a focus on optimizing data streaming and real-time data visualization.
+
+**Frontend**
+
+-   **Framework & Tools**: React with hooks, Dygraph library.
+-   **Graph Component**: Initialized and updated with backend data, using memoization for performance.
+-   **Controls Component**: Configures settings like data interval, display points, and handles file uploads with debounce and validation.
+-   **Data Streaming**: Managed via EventSourceAPI and preloaded data in a queue for smooth updates.
+-   **State Management**: Efficiently handled with hooks (useState, useRef, useCallback, useMemo).
+-   **Dynamic Downsampling**: Ensures efficient display of large datasets, with potential for manual downsample rate adjustments.
+
+**Backend**
+
+-   **Framework**: Next.js with API routes.
+-   **Endpoints**:
+
+1.  **Data Generation and Streaming (GET /api/data)**: Streams real-time data, supports test mode and file-based streaming with downsampling.
+2.  **File Upload (POST /api/data)**: Handles file uploads, stores data in CSV format, converts to Node.js stream for efficiency.
+
+-   **Downsampling Logic**: Optimized function to reduce data points, minimizing bandwidth and ensuring smooth graph rendering.
+
+**Highlights and Considerations**
+
+-   **Optimization Focus**: Prioritized smooth user experience with large datasets and real-time data.
+-   **Potential Bugs**: Due to time constraints, some bugs may exist, but core functionality is robust.
+-   **Performance Trade-offs**: Optimization took precedence over strict adherence to best practices.
+
+**How It Works**
+
+1.  **Preloading Data**: Initializes graph with preloaded backend data based on settings.
+2.  **Data Streaming**: Frontend requests data at intervals, backend streams or generates data, applies downsampling, and sends to frontend.
+3.  **Graph Updating**: Frontend processes and updates graph in real-time with downsampled data for responsiveness.
+
+
+## Example CSV format:
 
 ```
 0,-0.028733515256167692
@@ -67,7 +66,7 @@ In summary, this project demonstrates my ability to build a performant and optim
 ...
 ```
 
-### Todos
+## Todos
 
 1. Tests
 2. Deployment
