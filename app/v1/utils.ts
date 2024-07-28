@@ -1,4 +1,4 @@
-import { DataPoint } from "./types";
+import { DataPoint } from "../types";
 
 export const calculateAggregates = (data: DataPoint[]) => {
   if (data.length === 0) return { min: 0, max: 0, average: 0, variance: 0 };
