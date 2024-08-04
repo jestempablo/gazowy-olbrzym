@@ -1,6 +1,7 @@
-export const DEFAULT_INTERVAL = 1000;
-export const DEFAULT_DISPLAYED_POINTS = 2000;
+export const DEFAULT_INTERVAL = 100;
+export const DEFAULT_DISPLAYED_POINTS = 200000;
 export const DEFAULT_POINTS_PER_INTERVAL = 100;
+export const DEFAULT_OFFSET = 100000;
 export const GRAPH_WIDTH = 800;
 export const GRAPH_HEIGHT = 400;
 export const DEFAULT_TEST_MODE = false;
@@ -17,5 +18,5 @@ export const DYGRAPH_OPTIONS = {
   color: "#890089",
   fillAlpha: 0.5,
 };
-export const CHUNK_SIZE = 1024 * 6;
+export const CHUNK_SIZE = 1024 * 1024 * 5;
 export const DOWNSAMPLE_THRESHOLD = GRAPH_WIDTH * 2;

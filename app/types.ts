@@ -12,7 +12,7 @@ export interface Stats {
 }
 
 export type ProcessingWorkerResponse = {
-  rows?: DataRow[];
+  rows?: DataRow[][];
   isLastChunk?: boolean;
   processedIndex?: number;
   action: "stats" | "data";

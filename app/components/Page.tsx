@@ -1,12 +1,20 @@
 "use client";
 
-import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Wrapper } from "../v1/components/Wrapper";
 import Dygraph from "dygraphs";
 import {
   CHUNK_SIZE,
   DEFAULT_DISPLAYED_POINTS,
   DEFAULT_INTERVAL,
+  DEFAULT_OFFSET,
   DEFAULT_POINTS_PER_INTERVAL,
   DYGRAPH_OPTIONS,
 } from "../constants";
@@ -20,6 +28,8 @@ import {
 export default function Page() {
   // COMPONENT: state
   const [displayedData, setDisplayedData] = useState<DataRow[]>([]);
+  const [bufferedChunkData, setBufferedChunkData] = useState<DataRow[][]>([]);
+  const [displayedChunkData, setDisplayedChunkData] = useState<DataRow[][]>([]);
   const [stats, setStats] = useState<Stats>({
     total: 0,
     stored: 0,
@@ -33,7 +43,7 @@ export default function Page() {
   );
   const [newPointsInterval, setNewPointsInterval] =
     useState<number>(DEFAULT_INTERVAL);
-  const [startingOffset, setStartingOffset] = useState<number>(0);
+  const [startingOffset, setStartingOffset] = useState<number>(DEFAULT_OFFSET);
 
   // GRAPH: ref declare
   const dygraphInstanceRef = useRef<Dygraph | null>(null);
@@ -115,17 +125,81 @@ export default function Page() {
 
       if (action === "data") {
         if (rows && rows.length > 0) {
-          // console.log(rows);
-          setDisplayedData((prevData) => [...prevData, ...rows]);
+          console.log("RECEIVED", rows);
+          setBufferedChunkData(rows);
         }
 
         if (isLastChunk) {
+          console.log("FIN");
           closeWorkers();
         }
       }
     },
     []
   );
+
+  useEffect(() => {
+    if (bufferedChunkData.length > 0) {
+      const chunksDisplayedAtOnce = Math.ceil(
+        pointsDisplayed / pointsPerInterval
+      );
+
+      const isInitial = displayedChunkData.length < chunksDisplayedAtOnce;
+
+      bufferedChunkData.forEach((rowsChunk, chunkIndex) => {
+        setTimeout(
+          () => {
+            // update displayed chunk data, limit to "chunksDisplayedAtOnce" rowsChunk
+            setDisplayedChunkData((prevData) => {
+              if (prevData.length < chunksDisplayedAtOnce) {
+                console.log(
+                  "adding",
+                  rowsChunk[0][0],
+                  "to",
+                  rowsChunk[rowsChunk.length - 1][0]
+                );
+                return [...prevData, rowsChunk];
+              }
+
+              const [first, ...rest] = prevData;
+
+              console.log(
+                "dropping",
+                first[0][0],
+                "to",
+                first[first.length - 1][0]
+              );
+
+              console.log(
+                "adding",
+                rowsChunk[0][0],
+                "to",
+                rowsChunk[rowsChunk.length - 1][0]
+              );
+
+              return [...rest, rowsChunk];
+            });
+          },
+          isInitial ? 0 : chunkIndex * newPointsInterval
+        );
+      });
+      setBufferedChunkData([]);
+    }
+  }, [
+    bufferedChunkData,
+    newPointsInterval,
+    displayedChunkData,
+    pointsDisplayed,
+    pointsPerInterval,
+  ]);
+
+  useEffect(() => {
+    // on update to displayedChunkData, update displayedData
+    if (displayedChunkData.length > 0) {
+      const displayedData = displayedChunkData.flat();
+      setDisplayedData(displayedData);
+    }
+  }, [displayedChunkData]);
 
   // STORAGE WORKER: on error
   const storageWorkerOnErrorHandler = useCallback((error: ErrorEvent) => {
@@ -209,22 +283,38 @@ export default function Page() {
         const completeChunk = chunk.slice(0, lastNewlineIndex);
         remainder = chunk.slice(lastNewlineIndex + 1);
 
-        // Send the complete chunk to the worker
-        storageWorkerRef.current?.postMessage({
-          chunk: completeChunk,
-          offset: lineOffset,
-          start, // Pass the start byte position
-          action: undefined,
-        });
+        // Split the chunk into lines
+        const lines = completeChunk.split("\n");
 
-        // Calculate the number of lines in the chunk
-        const linesInChunk = completeChunk.split("\n").length;
-        lineOffset += linesInChunk;
+        // Skip lines until the starting offset is reached
+        if (lineOffset < startingOffset) {
+          const linesToSkip = Math.min(
+            startingOffset - lineOffset,
+            lines.length
+          );
+          lines.splice(0, linesToSkip);
+          lineOffset += linesToSkip;
+        }
 
-        setStats((prevStats) => ({
-          ...prevStats,
-          total: lineOffset,
-        }));
+        // If there are lines left after skipping, send them to the worker
+        if (lines.length > 0) {
+          const chunkToSend = lines.join("\n");
+          storageWorkerRef.current?.postMessage({
+            chunk: chunkToSend,
+            offset: lineOffset,
+            start, // Pass the start byte position
+            action: undefined,
+          });
+
+          // Calculate the number of lines in the chunk
+          const linesInChunk = chunkToSend.split("\n").length;
+          lineOffset += linesInChunk;
+
+          setStats((prevStats) => ({
+            ...prevStats,
+            total: lineOffset,
+          }));
+        }
 
         // Update to read the next chunk
         const nextStart = start + CHUNK_SIZE;
@@ -233,12 +323,14 @@ export default function Page() {
         } else {
           // Send any remaining part as the last chunk if not empty
           if (remainder) {
-            storageWorkerRef.current?.postMessage({
-              chunk: remainder,
-              offset: lineOffset,
-              start: nextStart, // This would be the byte after the last full chunk
-              action: "fileUploadEnd",
-            });
+            if (lineOffset >= startingOffset) {
+              storageWorkerRef.current?.postMessage({
+                chunk: remainder,
+                offset: lineOffset,
+                start: nextStart, // This would be the byte after the last full chunk
+                action: "fileUploadEnd",
+              });
+            }
           } else {
             // Indicate the end of file processing
             storageWorkerRef.current?.postMessage({
@@ -254,18 +346,38 @@ export default function Page() {
     }
   };
 
-  const startRolling = () => {
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const requestNewDataPoints = () => {
     if (processingWorkerRef.current) {
       processingWorkerRef.current.postMessage({
         action: "datapointsRequested",
-        offset: startingOffset,
         settings: {
-          newPointsInterval,
           pointsPerInterval,
           displayedPoints: pointsDisplayed,
-          startingOffset,
         },
       });
+    } else {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    }
+  };
+
+  const newBatchInterval = useMemo(() => {
+    return (pointsDisplayed / pointsPerInterval) * newPointsInterval;
+  }, [newPointsInterval, pointsDisplayed, pointsPerInterval]);
+
+  const startRolling = () => {
+    requestNewDataPoints();
+    intervalRef.current = setInterval(() => {
+      requestNewDataPoints();
+    }, newBatchInterval);
+  };
+
+  const inputFileRef = useRef<HTMLInputElement | null>(null);
+
+  const resetEverything = () => {
+    if (storageWorkerRef.current) {
+      storageWorkerRef.current.postMessage({ action: "resetDb" });
     }
   };
 
@@ -277,6 +389,9 @@ export default function Page() {
         <input
           type="text"
           value={pointsDisplayed}
+          disabled={Boolean(
+            inputFileRef.current && inputFileRef.current.value !== ""
+          )}
           onChange={(e) => setPointsDisplayed(Number(e.target.value))}
         />
       </label>
@@ -286,6 +401,9 @@ export default function Page() {
         <input
           type="text"
           value={pointsPerInterval}
+          disabled={Boolean(
+            inputFileRef.current && inputFileRef.current.value !== ""
+          )}
           onChange={(e) => setPointsPerInterval(Number(e.target.value))}
         />
       </label>
@@ -295,6 +413,9 @@ export default function Page() {
         <input
           type="text"
           value={newPointsInterval}
+          disabled={Boolean(
+            inputFileRef.current && inputFileRef.current.value !== ""
+          )}
           onChange={(e) => setNewPointsInterval(Number(e.target.value))}
         />
       </label>
@@ -304,39 +425,59 @@ export default function Page() {
         <input
           type="text"
           value={startingOffset}
+          disabled={Boolean(
+            inputFileRef.current && inputFileRef.current.value !== ""
+          )}
           onChange={(e) => setStartingOffset(Number(e.target.value))}
         />
       </label>
       <br />
 
-      <input type="file" accept=".csv" onChange={handleFileUpload} />
+      <input
+        type="file"
+        accept=".csv"
+        onChange={handleFileUpload}
+        ref={inputFileRef}
+      />
       <br />
-      <button onClick={startRolling}>Start rolling</button>
+      {!intervalRef.current ? (
+        <button
+          onClick={startRolling}
+          disabled={
+            !Boolean(inputFileRef.current && inputFileRef.current.value !== "")
+          }
+        >
+          Start rolling
+        </button>
+      ) : (
+        <button
+          onClick={() =>
+            intervalRef.current && clearInterval(intervalRef.current)
+          }
+        >
+          Stop rolling
+        </button>
+      )}
+      <button onClick={resetEverything}>Clear DB</button>
       <div ref={graphContainerRef} />
       <div>
         <h3>Stats</h3>
-        <p>Total (last read index): {stats.total}</p>
+        <p>
+          Displayed X range:{" "}
+          {displayedData.length > 0
+            ? `${displayedData[0][0]} to ${
+                displayedData[displayedData.length - 1][0]
+              }`
+            : "no data"}
+        </p>
+        <p>Last read index from file: {stats.total}</p>
         <p>
           Stored: ~{stats.stored} (actually first row id of last chunk of rows)
         </p>
-        <p>Processed: {stats.processed}</p>
+        <p>
+          Points processed: {stats.processed} (skipped: {startingOffset})
+        </p>
       </div>
     </Wrapper>
   );
 }
-
-/* next
-
-implement
-- points displayed
-- points per interval
-- interval
-
-consider how
-- syncing dataflow with interval
-- probably save the chunks all the way
-- and send requests from UI to pull batches from the db
-
-
-
-*/

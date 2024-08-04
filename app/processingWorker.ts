@@ -11,10 +11,12 @@ import { DataRow } from "./types";
 const dbPromise = openDB(DB_NAME, DB_VERSION, {
   upgrade(db) {
     if (!db.objectStoreNames.contains(DB_STORE_RAW)) {
-      db.createObjectStore(DB_STORE_RAW, { keyPath: "offset" });
+      db.createObjectStore(DB_STORE_RAW, { keyPath: "rawChunkIndex" });
     }
     if (!db.objectStoreNames.contains(DB_STORE_PROCESSED)) {
-      db.createObjectStore(DB_STORE_PROCESSED, { keyPath: "offset" });
+      db.createObjectStore(DB_STORE_PROCESSED, {
+        keyPath: "processedChunkIndex",
+      });
     }
   },
 });
@@ -22,128 +24,156 @@ const dbPromise = openDB(DB_NAME, DB_VERSION, {
 interface WorkerState {
   buffer: string[];
   bufferRowCount: number;
-  processedOffset: number;
+  processedRawChunkIndex: number;
+  processedChunkIndex: number;
   initialDataSent: boolean;
+  sentProcessedIndex: number;
 }
 
 // Initialize buffer, size tracker, and offset for processed data
 const workerState: WorkerState = {
   buffer: [],
   bufferRowCount: 0,
-  processedOffset: 0,
+  processedRawChunkIndex: 0,
+  processedChunkIndex: 0,
   initialDataSent: false,
+  sentProcessedIndex: 0,
 };
 
 self.addEventListener("message", async (event) => {
-  const {
-    action,
-    offset: storedChunkOffset,
-    isLastChunk,
-    settings = {},
-  } = event.data;
-  const {
-    displayedPoints,
-    newPointsInterval,
-    pointsPerInterval,
-    startingOffset,
-  } = settings;
+  const { action, isLastChunk, settings = {}, newPoints } = event.data;
+  const { pointsPerInterval, displayedPoints } = settings;
 
-  if (action === "chunkStored") {
+  if (action === "chunkStored" && isLastChunk) {
+    const chunksDisplayedAtOnce = Math.ceil(
+      displayedPoints / pointsPerInterval
+    );
     const db = await dbPromise;
-    const rawChunk = await db.get(DB_STORE_RAW, storedChunkOffset);
 
-    if (rawChunk) {
-      // Parse raw chunk data into rows and add to the buffer
-      const rows = rawChunk.data.split("\n");
-      workerState.buffer.push(...rows);
-      workerState.bufferRowCount += rows.length;
+    let rawChunk = await db.get(
+      DB_STORE_RAW,
+      workerState.processedRawChunkIndex
+    );
 
-      // Check if buffer row count meets or exceeds displayedPoints
-      if (workerState.bufferRowCount >= displayedPoints || isLastChunk) {
-        // Combine buffer rows into a single chunk
-        const combinedChunk = workerState.buffer.join("\n");
-        const processedData = processChunk(combinedChunk, {
-          newPointsInterval,
-          pointsPerInterval,
+    while (rawChunk) {
+      const rawData = rawChunk.data;
+
+      // Split the chunk into rows
+      const rows = rawData.split("\n");
+
+      // Add rows to buffer in smaller batches
+      for (let row of rows) {
+        workerState.buffer.push(row);
+        workerState.bufferRowCount += 1;
+      }
+
+      // Process buffer into processed chunks
+      while (workerState.bufferRowCount >= pointsPerInterval) {
+        const rawChunkToProcess = workerState.buffer
+          .slice(0, pointsPerInterval)
+          .join("\n");
+        const processedChunk = processChunk(rawChunkToProcess, {
           displayedPoints,
         });
+        workerState.buffer = workerState.buffer.slice(pointsPerInterval);
+        workerState.bufferRowCount -= pointsPerInterval;
 
-        // Store the processed data with the correct offset
+        // Save processed chunk
         await db.put(DB_STORE_PROCESSED, {
-          offset: workerState.processedOffset,
-          data: processedData,
+          chunkIndex: workerState.processedChunkIndex,
+          data: processedChunk,
         });
-
-        // Update the processed offset
-        workerState.processedOffset += displayedPoints;
-
-        // Clear the buffer
-        workerState.buffer = [];
-        workerState.bufferRowCount = 0;
-
         self.postMessage({
           action: "stats",
-          processedIndex: workerState.processedOffset,
+          processedIndex: processedChunk[processedChunk.length - 1][0],
         });
+        workerState.processedChunkIndex += 1;
+      }
 
-        if (!workerState.initialDataSent) {
-          self.postMessage({
-            action: "data",
-            rows: processedData,
-          });
-          workerState.initialDataSent = true;
+      // Load the next raw chunk
+      workerState.processedRawChunkIndex += 1;
+      rawChunk = await db.get(DB_STORE_RAW, workerState.processedRawChunkIndex);
+    }
+
+    // If any remaining data in the buffer, process it as a final chunk
+    if (workerState.bufferRowCount > 0) {
+      const rawChunkToProcess = workerState.buffer.join("\n");
+      const processedChunk = processChunk(rawChunkToProcess, {
+        displayedPoints,
+      });
+      await db.put(DB_STORE_PROCESSED, {
+        chunkIndex: workerState.processedChunkIndex,
+        data: processedChunk,
+      });
+      workerState.buffer = [];
+      workerState.bufferRowCount = 0;
+      workerState.processedChunkIndex += 1;
+    }
+
+    if (!workerState.initialDataSent) {
+      workerState.initialDataSent = true;
+      // get first processed chunks to fill the pointsDisplayed
+      const dataToBeSent = [];
+      for (let i = 0; i < chunksDisplayedAtOnce; i++) {
+        const processedChunk = await db.get(DB_STORE_PROCESSED, i);
+        if (processedChunk) {
+          dataToBeSent.push(processedChunk.data);
         }
       }
+      workerState.sentProcessedIndex = chunksDisplayedAtOnce;
+      self.postMessage({ action: "data", rows: dataToBeSent });
     }
   }
 
   if (action === "datapointsRequested") {
-    const db = await dbPromise;
-    let processedData: DataRow[] = [];
-    let isLastChunk = false;
-    let offset = startingOffset;
+    const chunksDisplayedAtOnce = Math.ceil(
+      displayedPoints / pointsPerInterval
+    );
 
-    while (processedData.length < displayedPoints && !isLastChunk) {
-      // Fetch the next chunk using the current offset
-      const chunk = await db.get(DB_STORE_PROCESSED, offset);
-      if (chunk) {
-        processedData.push(...chunk.data); // Append chunk data to the results
-        offset += chunk.data.length; // Increment offset by the size of the chunk
+    let isLastChunk = false;
+
+    const db = await dbPromise;
+    const dataToBeSent = [];
+    console.log(
+      "workerState.sentProcessedIndex",
+      workerState.sentProcessedIndex
+    );
+    console.log("chunksDisplayedAtOnce", chunksDisplayedAtOnce);
+    for (
+      let i = workerState.sentProcessedIndex;
+      i < workerState.sentProcessedIndex + chunksDisplayedAtOnce;
+      i++
+    ) {
+      const processedChunk = await db.get(DB_STORE_PROCESSED, i);
+      if (processedChunk) {
+        dataToBeSent.push(processedChunk.data);
       } else {
         isLastChunk = true;
+        break;
       }
     }
-
-    self.postMessage({ action: "data", rows: processedData, isLastChunk });
+    workerState.sentProcessedIndex += chunksDisplayedAtOnce;
+    self.postMessage({ action: "data", rows: dataToBeSent, isLastChunk });
   }
 });
 
 interface ProcessChunkSettings {
-  newPointsInterval: number;
-  pointsPerInterval: number;
   displayedPoints: number;
 }
 
 function processChunk(
   rawData: string,
-  {
-    newPointsInterval,
-    pointsPerInterval,
-    displayedPoints,
-  }: ProcessChunkSettings
+  { displayedPoints }: ProcessChunkSettings
 ): DataRow[] {
-  // Parse raw data into rows (assuming CSV-like format)
   const rows = rawData.split("\n").map((row) => row.split(",").map(Number));
 
-  // Check if downsampling is needed
   if (displayedPoints > DOWNSAMPLE_THRESHOLD) {
-    // Calculate the downsampling factor based on the total number of rows and displayed points
     const factor = Math.ceil(displayedPoints / DOWNSAMPLE_THRESHOLD);
     const downsampledData: DataRow[] = [];
 
     for (let i = 0; i < rows.length; i += factor) {
       const slice = rows.slice(i, i + factor);
-      const index = slice[0][0]; // Use the index of the first row in the slice
+      const index = slice[0][0];
       let min = Infinity;
       let max = -Infinity;
       let sum = 0;
@@ -154,14 +184,13 @@ function processChunk(
         sum += value;
       });
 
-      const y = sum / slice.length; // Average value
-      const error_margin = max - min; // Error margin as the difference between max and min
+      const y = sum / slice.length;
+      const error_margin = max - min;
 
       downsampledData.push([index, [y, error_margin]]);
     }
     return downsampledData;
   }
 
-  // If no downsampling is needed, return the data with zero error margins
   return rows.map(([index, value]) => [index, [value, 0]]);
 }
