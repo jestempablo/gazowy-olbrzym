@@ -35,6 +35,12 @@ export default function Page() {
     stored: 0,
     processed: 0,
   });
+  const [graphStats, setGraphStats] = useState({
+    min: 0,
+    max: 0,
+    average: 0,
+    variance: 0,
+  });
   const [pointsDisplayed, setPointsDisplayed] = useState<number>(
     DEFAULT_DISPLAYED_POINTS
   );
@@ -194,10 +200,23 @@ export default function Page() {
   ]);
 
   useEffect(() => {
-    // on update to displayedChunkData, update displayedData
+    // on update to displayedChunkData, update displayedData and calculate stats
     if (displayedChunkData.length > 0) {
       const displayedData = displayedChunkData.flat();
       setDisplayedData(displayedData);
+
+      const values = displayedData.map((row) => row[1][0]);
+      if (values.length > 0) {
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        const average =
+          values.reduce((sum, value) => sum + value, 0) / values.length;
+        const variance =
+          values.reduce((sum, value) => sum + (value - average) ** 2, 0) /
+          values.length;
+
+        setGraphStats({ min, max, average, variance });
+      }
     }
   }, [displayedChunkData]);
 
@@ -261,13 +280,13 @@ export default function Page() {
         reader.onload = (e) => {
           if (e.target?.result && storageWorkerRef.current) {
             const chunk = e.target.result as string;
-            processChunk(chunk, start);
+            processChunk(chunk, start, end);
           }
         };
         reader.readAsText(blob);
       };
 
-      const processChunk = (chunk: string, start: number) => {
+      const processChunk = (chunk: string, start: number, end: number) => {
         // Prepend the remainder from the previous chunk
         chunk = remainder + chunk;
 
@@ -330,6 +349,12 @@ export default function Page() {
                 start: nextStart, // This would be the byte after the last full chunk
                 action: "fileUploadEnd",
               });
+            } else {
+              // Indicate the end of file processing
+              storageWorkerRef.current?.postMessage({
+                action: "fileUploadEnd",
+                offset: lineOffset,
+              });
             }
           } else {
             // Indicate the end of file processing
@@ -375,17 +400,17 @@ export default function Page() {
 
   const inputFileRef = useRef<HTMLInputElement | null>(null);
 
-  const resetEverything = () => {
+  useEffect(() => {
     if (storageWorkerRef.current) {
       storageWorkerRef.current.postMessage({ action: "resetDb" });
     }
-  };
+  }, []);
 
   return (
     <Wrapper>
       <h1>hi</h1>
       <label>
-        Points displayed
+        Points displayed (N)
         <input
           type="text"
           value={pointsDisplayed}
@@ -397,7 +422,7 @@ export default function Page() {
       </label>
       <br />
       <label>
-        Points per interval
+        Points per interval (P)
         <input
           type="text"
           value={pointsPerInterval}
@@ -409,7 +434,7 @@ export default function Page() {
       </label>
       <br />
       <label>
-        Interval
+        Interval (T)
         <input
           type="text"
           value={newPointsInterval}
@@ -421,7 +446,7 @@ export default function Page() {
       </label>
       <br />
       <label>
-        Starting offset
+        Starting offset (S)
         <input
           type="text"
           value={startingOffset}
@@ -440,28 +465,23 @@ export default function Page() {
         ref={inputFileRef}
       />
       <br />
-      {!intervalRef.current ? (
-        <button
-          onClick={startRolling}
-          disabled={
-            !Boolean(inputFileRef.current && inputFileRef.current.value !== "")
-          }
-        >
-          Start rolling
-        </button>
-      ) : (
-        <button
-          onClick={() =>
-            intervalRef.current && clearInterval(intervalRef.current)
-          }
-        >
-          Stop rolling
-        </button>
-      )}
-      <button onClick={resetEverything}>Clear DB</button>
+      <button
+        onClick={startRolling}
+        disabled={
+          Boolean(intervalRef.current) ||
+          !Boolean(inputFileRef.current && inputFileRef.current.value !== "")
+        }
+      >
+        Start
+      </button>
+      <button onClick={() => window.location.reload()}>Reload page</button>
       <div ref={graphContainerRef} />
       <div>
         <h3>Stats</h3>
+        <p>Min: {graphStats.min}</p>
+        <p>Max: {graphStats.max}</p>
+        <p>Average: {graphStats.average}</p>
+        <p>Variance: {graphStats.variance}</p>
         <p>
           Displayed X range:{" "}
           {displayedData.length > 0

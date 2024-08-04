@@ -1,7 +1,7 @@
-export const DEFAULT_INTERVAL = 100;
+export const DEFAULT_INTERVAL = 500;
 export const DEFAULT_DISPLAYED_POINTS = 200000;
-export const DEFAULT_POINTS_PER_INTERVAL = 100;
-export const DEFAULT_OFFSET = 100000;
+export const DEFAULT_POINTS_PER_INTERVAL = 50000;
+export const DEFAULT_OFFSET = 0;
 export const GRAPH_WIDTH = 800;
 export const GRAPH_HEIGHT = 400;
 export const DEFAULT_TEST_MODE = false;
