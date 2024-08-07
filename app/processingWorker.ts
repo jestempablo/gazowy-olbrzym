@@ -80,7 +80,7 @@ self.addEventListener("message", async (event) => {
 
         // Save processed chunk
         await db.put(DB_STORE_PROCESSED, {
-          chunkIndex: workerState.processedChunkIndex,
+          processedChunkIndex: workerState.processedChunkIndex,
           data: processedChunk,
         });
         self.postMessage({
@@ -102,7 +102,7 @@ self.addEventListener("message", async (event) => {
         displayedPoints,
       });
       await db.put(DB_STORE_PROCESSED, {
-        chunkIndex: workerState.processedChunkIndex,
+        processedChunkIndex: workerState.processedChunkIndex,
         data: processedChunk,
       });
       workerState.buffer = [];

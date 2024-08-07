@@ -43,7 +43,7 @@ self.addEventListener("message", async (event) => {
   if (chunk) {
     // console.log("STORING CHUNK ", workerState.storedIndex);
     await db.put(DB_STORE_RAW, {
-      chunkIndex: workerState.storedIndex,
+      rawChunkIndex: workerState.storedIndex,
       data: chunk,
     });
     workerState.storedIndex += 1;
