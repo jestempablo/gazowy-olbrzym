@@ -28,6 +28,12 @@ const themeOptions: ThemeOptions = {
       },
     },
   },
+  typography: {
+    subtitle2: {
+      fontSize: "0.8rem",
+      color: colors.grey[500],
+    },
+  },
 };
 
 export const theme = createTheme(themeOptions);

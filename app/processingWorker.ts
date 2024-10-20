@@ -187,8 +187,8 @@ function processChunk(
         sumOfSquares += value * value;
       });
 
-      const y = sum / count;
-      const error_margin = max - min;
+      const y = (min + max) / 2;
+      const error_margin = (max - min) / 4;
       const stats = { min, max, sum, sumOfSquares, count };
 
       downsampledData.push([index, [y, error_margin], stats]);

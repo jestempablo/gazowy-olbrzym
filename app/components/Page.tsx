@@ -16,6 +16,7 @@ import {
   DEFAULT_INTERVAL,
   DEFAULT_OFFSET,
   DEFAULT_POINTS_PER_INTERVAL,
+  DOWNSAMPLE_THRESHOLD,
   DYGRAPH_OPTIONS,
 } from "../constants";
 import {
@@ -24,6 +25,7 @@ import {
   ProcessingWorkerResponse,
   StorageWorkerResponse,
 } from "../types";
+import { Typography } from "@mui/material";
 
 export default function Page() {
   // COMPONENT: state
@@ -50,6 +52,14 @@ export default function Page() {
   const [newPointsInterval, setNewPointsInterval] =
     useState<number>(DEFAULT_INTERVAL);
   const [startingOffset, setStartingOffset] = useState<number>(DEFAULT_OFFSET);
+
+  const FACTOR = useMemo(
+    () =>
+      pointsDisplayed > DOWNSAMPLE_THRESHOLD
+        ? Math.ceil(pointsDisplayed / DOWNSAMPLE_THRESHOLD)
+        : 1,
+    [pointsDisplayed]
+  );
 
   // GRAPH: ref declare
   const dygraphInstanceRef = useRef<Dygraph | null>(null);
@@ -484,22 +494,50 @@ export default function Page() {
         <h3>Stats</h3>
         <p>Min: {graphStats.min}</p>
         <p>Max: {graphStats.max}</p>
-        <p>Average: {graphStats.average}</p>
-        <p>Variance: {graphStats.variance}</p>
+        <p>
+          Average:{" "}
+          {Number(graphStats.average) === Number(graphStats.average.toFixed(6))
+            ? graphStats.average
+            : "~" + graphStats.average.toFixed(6)}
+        </p>
+        <p>
+          Variance:{" "}
+          {Number(graphStats.variance) ===
+          Number(graphStats.variance.toFixed(6))
+            ? graphStats.variance
+            : "~" + graphStats.variance.toFixed(6)}
+        </p>
         <p>
           Displayed X range:{" "}
           {displayedData.length > 0
             ? `${displayedData[0][0]} to ${
-                displayedData[displayedData.length - 1][0]
+                displayedData[displayedData.length - 1][0] + FACTOR - 1
               }`
-            : "no data"}
+            : "no data"}{" "}
+          {/* {displayedData.length > 0 && FACTOR > 1 ? (
+            <Typography component="span" variant="subtitle2">
+              (+{FACTOR} points downsampled into last index)
+            </Typography>
+          ) : (
+            ""
+          )}{" "} */}
         </p>
+        <p>Downsample rate: {FACTOR}</p>
         <p>Last read index from file: {stats.total}</p>
         <p>
-          Stored: ~{stats.stored} (actually first row id of last chunk of rows)
+          Raw points stored: ~{stats.stored} (actually first row id of last
+          chunk of rows)
         </p>
         <p>
-          Points processed: {stats.processed} (skipped: {startingOffset})
+          Points processed: {stats.processed + FACTOR - 1}{" "}
+          {/* {FACTOR > 1 ? (
+            <Typography component="span" variant="subtitle2">
+              (+{FACTOR} points downsampled into last index)
+            </Typography>
+          ) : (
+            ""
+          )}{" "} */}
+          (skipped: {startingOffset})
         </p>
       </div>
     </Wrapper>
