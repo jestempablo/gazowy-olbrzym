@@ -3,7 +3,17 @@ export interface DataPoint {
   y: [number, number];
 }
 
-export type DataRow = [number, [number, number]];
+export type DataRow = [
+  number,
+  [number, number],
+  {
+    min: number;
+    max: number;
+    sum: number;
+    sumOfSquares: number;
+    count: number;
+  }
+];
 
 export interface Stats {
   total: number;

@@ -177,20 +177,34 @@ function processChunk(
       let min = Infinity;
       let max = -Infinity;
       let sum = 0;
+      let sumOfSquares = 0;
+      const count = slice.length;
 
       slice.forEach(([_, value]) => {
         if (value < min) min = value;
         if (value > max) max = value;
         sum += value;
+        sumOfSquares += value * value;
       });
 
-      const y = sum / slice.length;
+      const y = sum / count;
       const error_margin = max - min;
+      const stats = { min, max, sum, sumOfSquares, count };
 
-      downsampledData.push([index, [y, error_margin]]);
+      downsampledData.push([index, [y, error_margin], stats]);
     }
     return downsampledData;
   }
 
-  return rows.map(([index, value]) => [index, [value, 0]]);
+  // For cases without downsampling, still compute stats
+  return rows.map(([index, value]) => {
+    const stats = {
+      min: value,
+      max: value,
+      sum: value,
+      sumOfSquares: value * value,
+      count: 1,
+    };
+    return [index, [value, 0], stats];
+  });
 }

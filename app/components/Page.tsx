@@ -69,7 +69,8 @@ export default function Page() {
   // GRAPH: update
   useEffect(() => {
     if (displayedData.length > 0 && dygraphInstanceRef.current) {
-      dygraphInstanceRef.current.updateOptions({ file: displayedData });
+      const data = displayedData.map(([x, y]) => [x, y]);
+      dygraphInstanceRef.current.updateOptions({ file: data });
     }
   }, [displayedData]);
 
@@ -205,15 +206,18 @@ export default function Page() {
       const displayedData = displayedChunkData.flat();
       setDisplayedData(displayedData);
 
-      const values = displayedData.map((row) => row[1][0]);
-      if (values.length > 0) {
-        const min = Math.min(...values);
-        const max = Math.max(...values);
-        const average =
-          values.reduce((sum, value) => sum + value, 0) / values.length;
-        const variance =
-          values.reduce((sum, value) => sum + (value - average) ** 2, 0) /
-          values.length;
+      const statsArray = displayedData.map((row) => row[2]); // Extract stats
+      if (statsArray.length > 0) {
+        const min = Math.min(...statsArray.map((s) => s.min));
+        const max = Math.max(...statsArray.map((s) => s.max));
+        const totalSum = statsArray.reduce((sum, s) => sum + s.sum, 0);
+        const totalSumOfSquares = statsArray.reduce(
+          (sum, s) => sum + s.sumOfSquares,
+          0
+        );
+        const totalCount = statsArray.reduce((sum, s) => sum + s.count, 0);
+        const average = totalSum / totalCount;
+        const variance = totalSumOfSquares / totalCount - Math.pow(average, 2);
 
         setGraphStats({ min, max, average, variance });
       }
